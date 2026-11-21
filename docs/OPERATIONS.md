@@ -30,6 +30,16 @@ curl https://zhiwei-u0jc.onrender.com/health
 
 ### 手动触发部署
 
+> Render 的 autoDeploy 对这个服务没生效（服务是 API 建的，没接 GitHub webhook），
+> 所以 push 完要手动触发一次部署。
+
+```powershell
+# 最省事：一键脚本（会等部署完成并做健康检查）
+.\scripts\deploy.ps1 -Key rnd_xxxxx
+```
+
+或直接调 API：
+
 ```powershell
 $H = @{ Authorization = "Bearer <RENDER_KEY>"; "Content-Type" = "application/json" }
 Invoke-RestMethod -Method Post `
