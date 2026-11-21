@@ -68,6 +68,9 @@ BASE_PROMPT = """【核心身份】
 
 【人物档案】
 {people}
+
+【他现在的待办】
+{todos}
 """
 
 
@@ -76,6 +79,7 @@ def build_system_prompt(
     user_name: str,
     memories: list[str] | None = None,
     people: list[str] | None = None,
+    todos: list[str] | None = None,
     timezone: str = "Asia/Shanghai",
     now: datetime | None = None,
 ) -> str:
@@ -90,10 +94,16 @@ def build_system_prompt(
     # 服务器一般跑在 UTC，必须换算到用户时区，否则模型会把 UTC 当成本地时间
     local_now = (now or datetime.now(ZoneInfo(timezone))).astimezone(ZoneInfo(timezone))
     stamp = local_now.strftime("%Y-%m-%d %H:%M %A") + f"（{timezone}）"
+    todo_block = (
+        "\n".join(f"- {x}" for x in todos)
+        if todos
+        else "（当前没有待办。他让你提醒什么时，用 [[TODO:标题|时间]] 标签记下来）"
+    )
     return BASE_PROMPT.format(
         ai_name=ai_name,
         user_name=user_name,
         memories=memory_block,
         people=people_block,
+        todos=todo_block,
         now=stamp,
     )

@@ -48,11 +48,13 @@ class Assistant:
         )
         memories = await self._memory_lines(session, user, last_user_text)
         people = await self._people_lines(session, user, last_user_text)
+        todos = await self._todo_lines(session, user)
         system_prompt = build_system_prompt(
             ai_name=self.settings.ai_name,
             user_name=self.settings.user_name,
             memories=memories,
             people=people,
+            todos=todos,
             timezone=self.settings.timezone,
         )
         # 把当前时间贴到最后一条用户消息前面：历史里可能有旧时间，模型会抄，
@@ -69,6 +71,21 @@ class Assistant:
             ]
         messages = [{"role": "system", "content": system_prompt}, *history]
         return await self.router.chat(messages)
+
+    async def _todo_lines(self, session: AsyncSession, user: User) -> list[str]:
+        """把真实待办注入提示词，否则模型会从历史里编一份。"""
+        from app.reminders import service as reminders
+
+        try:
+            rows = await reminders.list_pending(session, user.id, limit=10)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("读取待办失败：%s", exc)
+            return []
+        out = []
+        for r in rows:
+            when = reminders.fmt_local(r.due_at, self.settings.timezone) if r.due_at else "未定时间"
+            out.append(f"{when} {r.title}")
+        return out
 
     async def _people_lines(self, session: AsyncSession, user: User, query: str) -> list[str]:
         """只注入这句话里提到的人，避免无关隐私外泄。"""

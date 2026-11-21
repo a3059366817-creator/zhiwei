@@ -231,3 +231,23 @@ def test_reminder_intent_gate():
     assert not allow("看看我现在待办事项有什么？")
     assert not allow("我待办有哪些")
     assert not allow("今天天气不错")
+
+
+def test_prompt_includes_real_todos():
+    """待办必须注入提示词，否则模型会从历史里编一份。"""
+    from app.agent.prompts import build_system_prompt
+
+    prompt = build_system_prompt(
+        ai_name="知微", user_name="木川", todos=["07:30 叫起床", "13:00 做50道驾校题"]
+    )
+    assert "【他现在的待办】" in prompt
+    assert "叫起床" in prompt
+    assert "做50道驾校题" in prompt
+
+
+def test_prompt_without_todos_tells_model_to_create_them():
+    from app.agent.prompts import build_system_prompt
+
+    prompt = build_system_prompt(ai_name="知微", user_name="木川", todos=[])
+    assert "当前没有待办" in prompt
+    assert "[[TODO:" in prompt
