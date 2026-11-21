@@ -208,3 +208,26 @@ def test_webhook_update_dedup():
 
     assert _seen_before(123456) is False
     assert _seen_before(123456) is True
+
+
+# ---------------- 意图门控与时间问答（线上 bug 回归） ----------------
+def test_time_question_regex():
+    from app.bot.handlers.chat import TIME_QUESTION
+
+    for q in ("现在几点钟？", "现在几点了", "今天几号", "今天星期几", "当前时间"):
+        assert TIME_QUESTION.search(q), q
+    for q in ("十分钟后提醒我散步", "我今天很累", "帮我看看待办"):
+        assert not TIME_QUESTION.search(q), q
+
+
+def test_reminder_intent_gate():
+    from app.bot.handlers.chat import CREATE_INTENT, QUERY_INTENT
+
+    def allow(text: str) -> bool:
+        return bool(CREATE_INTENT.search(text)) and not QUERY_INTENT.search(text)
+
+    assert allow("十分钟后提醒我散步")
+    assert allow("明早七点半叫我起床")
+    assert not allow("看看我现在待办事项有什么？")
+    assert not allow("我待办有哪些")
+    assert not allow("今天天气不错")

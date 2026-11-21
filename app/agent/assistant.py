@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +55,18 @@ class Assistant:
             people=people,
             timezone=self.settings.timezone,
         )
+        # 把当前时间贴到最后一条用户消息前面：历史里可能有旧时间，模型会抄，
+        # 紧挨着问题的时间标记才能压过它。
+        local_now = datetime.now(ZoneInfo(self.settings.timezone))
+        stamp = local_now.strftime("%Y-%m-%d %H:%M %A")
+        if history and history[-1]["role"] == "user":
+            history = [
+                *history[:-1],
+                {
+                    "role": "user",
+                    "content": f"（当前时间 {stamp}）\n{history[-1]['content']}",
+                },
+            ]
         messages = [{"role": "system", "content": system_prompt}, *history]
         return await self.router.chat(messages)
 

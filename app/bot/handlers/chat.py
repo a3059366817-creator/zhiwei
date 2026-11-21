@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.types import Message
@@ -25,6 +28,15 @@ from app.services import user_service
 
 logger = logging.getLogger(__name__)
 router = Router(name="chat")
+
+# 只有带着「让我记/提醒」意图时才允许建提醒，否则模型很容易把闲聊也变成待办
+CREATE_INTENT = re.compile(r"提醒|记得|叫我|喊我|别忘")
+QUERY_INTENT = re.compile(r"(有什么|有哪些|看看|列一下|查看|清单|待办事项)")
+
+# 「现在几点」这类问题由程序直接回答，不问模型——模型会从历史里抄旧时间
+TIME_QUESTION = re.compile(
+    r"(现在|当前|今天).{0,4}(几点|时间|日期|几号|星期几)|今天星期几"
+)
 
 
 async def _handle_pending_edit(
@@ -85,16 +97,19 @@ async def _handle_pending_edit(
 
 
 async def _apply_reminder_tags(
-    session: AsyncSession, user, parsed, settings: Settings
+    session: AsyncSession, user, parsed, settings: Settings, allow_create: bool = True
 ) -> list[str]:
     """把模型回复里的 [[TODO]] / [[DONE]] 落到数据库，返回给用户看的确认行。"""
     notes: list[str] = []
 
-    for title, due_naive in parsed.todos:
-        due = reminders.to_utc(due_naive, settings.timezone) if due_naive else None
-        row = await reminders.create_reminder(session, user, title, due, source="chat")
-        when = reminders.fmt_local(row.due_at, settings.timezone)
-        notes.append(f"📌 已记下：{row.title}" + (f"（{when}）" if row.due_at else "（没定时间）"))
+    if allow_create:
+        for title, due_naive in parsed.todos:
+            due = reminders.to_utc(due_naive, settings.timezone) if due_naive else None
+            row = await reminders.create_reminder(session, user, title, due, source="chat")
+            when = reminders.fmt_local(row.due_at, settings.timezone)
+            notes.append(
+                f"📌 已记下：{row.title}" + (f"（{when}）" if row.due_at else "（没定时间）")
+            )
 
     for ref in parsed.done:
         target = None
@@ -126,6 +141,12 @@ async def on_text(
     if await _handle_pending_edit(message, session, text, user_id, settings):
         return
 
+    # 「现在几点」直接由程序回答，避免模型去历史里找时间
+    if TIME_QUESTION.search(text) and len(text) <= 25:
+        now = datetime.now(ZoneInfo(settings.timezone))
+        await message.answer(f"现在是 {now:%Y年%m月%d日 %H:%M}（{settings.timezone}）。")
+        return
+
     user = await user_service.get_or_create(
         session,
         user_id,
@@ -152,7 +173,12 @@ async def on_text(
         raise exc
 
     parsed = parse_actions(raw)
-    notes = await _apply_reminder_tags(session, user, parsed, settings)
+    body_text = (message.text or "")
+    allow_create = bool(CREATE_INTENT.search(body_text)) and not QUERY_INTENT.search(body_text)
+    if parsed.todos and not allow_create:
+        logger.info("忽略模型凭空生成的提醒标签：%s", [t for t, _ in parsed.todos])
+        parsed.todos = []
+    notes = await _apply_reminder_tags(session, user, parsed, settings, allow_create)
     body = "\n\n".join([parsed.text or "嗯。", *notes]) if notes else (parsed.text or "嗯。")
 
     await conv_service.add_message(
