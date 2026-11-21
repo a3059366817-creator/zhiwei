@@ -9,7 +9,7 @@ from __future__ import annotations
 import hmac
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.conversation import service as conv_service
@@ -111,6 +111,20 @@ async def list_conversations(
             for c in rows
         ],
     }
+
+
+@router.post("/internal/tick", dependencies=[Depends(require_token)])
+async def internal_tick(request: Request) -> dict:
+    """外部 cron 调用：唤醒服务并立刻检查一次到期提醒。
+
+    Render 免费实例会休眠，进程内定时器在休眠期间不跑，
+    所以需要外部每几分钟打一次这个接口（GitHub Actions 已配好）。
+    """
+    scheduler = getattr(request.app.state, "scheduler", None)
+    if scheduler is None:
+        return {"sent": 0, "reason": "scheduler not running"}
+    sent = await scheduler.tick()
+    return {"sent": sent}
 
 
 @router.get("/people", dependencies=[Depends(require_token)])

@@ -5,6 +5,30 @@ from __future__ import annotations
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
+def reminder_actions(reminder_id: str) -> InlineKeyboardMarkup:
+    """提醒卡片上的按钮。callback_data 上限 64 字节，UUID 36 字符刚好够。"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ 完成了", callback_data=f"rem:done:{reminder_id}"),
+                InlineKeyboardButton(
+                    text="⏰ 20 分钟后", callback_data=f"rem:snooze:{reminder_id}"
+                ),
+            ]
+        ]
+    )
+
+
+def reminder_list(rows: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    """待办列表：每条一个「完成」按钮。rows = [(id, 标题)]"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"✅ {title[:28]}", callback_data=f"rem:done:{rid}")]
+            for rid, title in rows[:8]
+        ]
+    )
+
+
 def main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

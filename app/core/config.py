@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # 模型
     llm_provider: str = "ollama"  # ollama | gemini | openrouter
     llm_fallback_provider: str = ""
+    # 用户所在时区（服务器一般跑 UTC，提醒时间要用这个换算）
+    timezone: str = "Asia/Shanghai"
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3:8b"
     gemini_api_key: str = ""

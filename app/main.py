@@ -61,8 +61,10 @@ async def lifespan(app: FastAPI):
     app.state.assistant = assistant
     app.state.bot = None
     app.state.dp = None
+    app.state.scheduler = None
 
     poll_task: asyncio.Task | None = None
+    scheduler = None
     bot = None
     if settings.telegram_bot_token:
         # 延迟导入：测试环境不需要 aiogram 的完整初始化开销
@@ -86,12 +88,21 @@ async def lifespan(app: FastAPI):
             logger.info("Bot 已启动（长轮询）")
         else:
             logger.info("Bot 处于 webhook 模式，等待 POST /webhook/telegram")
+
+        # 提醒调度器：进程醒着就每 30 秒检查一次；外部 cron 也可以打 /api/v1/internal/tick
+        from app.reminders.scheduler import ReminderScheduler
+
+        scheduler = ReminderScheduler(bot, settings, llm)
+        app.state.scheduler = scheduler
+        await scheduler.start()
     else:
         logger.warning("TELEGRAM_BOT_TOKEN 未配置，Bot 不会启动")
 
     try:
         yield
     finally:
+        if scheduler is not None:
+            await scheduler.stop()
         if poll_task is not None:
             poll_task.cancel()
             try:

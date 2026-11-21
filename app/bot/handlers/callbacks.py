@@ -118,6 +118,47 @@ async def on_memory_action(call: CallbackQuery, session: AsyncSession) -> None:
     await call.answer()
 
 
+@router.callback_query(F.data.startswith("rem:"))
+async def on_reminder_action(call: CallbackQuery, session: AsyncSession, settings) -> None:
+    """rem:<done|snooze>:<id> —— 提醒卡片上的按钮。"""
+    from app.reminders import service as reminders
+
+    assert call.from_user is not None
+    parts = (call.data or "").split(":")
+    if len(parts) < 3:
+        await call.answer()
+        return
+    action, rid = parts[1], parts[2]
+
+    user = await user_service.get_by_telegram_id(session, call.from_user.id)
+    if user is None:
+        await call.answer("没找到你的记录")
+        return
+
+    if action == "done":
+        row = await reminders.complete(session, user.id, rid)
+        if row is None:
+            await call.answer("这条已经不在了")
+            return
+        await call.answer("干得好")
+        if call.message is not None:
+            await call.message.edit_text(f"✅ {row.title} —— 完成了")
+        return
+
+    if action == "snooze":
+        row = await reminders.snooze(session, user.id, rid, 20)
+        if row is None:
+            await call.answer("这条已经不在了")
+            return
+        when = reminders.fmt_local(row.due_at, settings.timezone)
+        await call.answer(f"改到 {when}")
+        if call.message is not None:
+            await call.message.edit_text(f"⏰ {row.title} —— 推迟到 {when}")
+        return
+
+    await call.answer()
+
+
 @router.callback_query(F.data.startswith("ppl:"))
 async def on_people_action(call: CallbackQuery, session: AsyncSession) -> None:
     """ppl:<name|desc|rel|del>:<person_id>"""

@@ -15,6 +15,7 @@ dependencies = [
     "aiogram>=3.15",
     "httpx>=0.28",
     "aiohttp-socks>=0.12.0",
+    "tzdata>=2026.6",
 ]
 
 # 部署时 pip/uv 需要能把 app/ 打成 wheel。
@@ -28,6 +29,7 @@ packages = ["app"]
 
 [dependency-groups]
 dev = [
+    "pynacl>=1.6.2",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "ruff>=0.8",

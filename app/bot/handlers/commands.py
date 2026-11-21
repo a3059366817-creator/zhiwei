@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.keyboards import main_menu, memory_candidate, memory_list, people_list
+from app.bot.keyboards import (
+    main_menu,
+    memory_candidate,
+    memory_list,
+    people_list,
+    reminder_list,
+)
 from app.bot.utils import answer_long
 from app.conversation import service as conv_service
 from app.core.config import Settings
@@ -17,6 +24,7 @@ from app.llm.router import LLMRouter
 from app.memory import manager
 from app.people.service import list_people
 from app.profile.service import build_profile, render_profile_text
+from app.reminders import service as reminders
 from app.services import user_service
 
 logger = logging.getLogger(__name__)
@@ -62,6 +70,99 @@ async def on_new(message: Message, session: AsyncSession, settings: Settings) ->
     user = await user_service.get_or_create(session, message.from_user.id)
     await conv_service.start_new_conversation(session, user)
     await message.answer("好，翻篇了。想聊点新的？")
+
+
+@router.message(Command("todo", "todos", "remind"))
+async def on_todo(message: Message, session: AsyncSession, settings: Settings) -> None:
+    assert message.from_user is not None
+    user = await user_service.get_by_telegram_id(session, message.from_user.id)
+    if user is None:
+        await message.answer(
+            "我们还没聊过。想让我提醒你什么，直接说就行，比如「明早七点半叫我起床」。"
+        )
+        return
+
+    rows = await reminders.list_pending(session, user.id)
+    if not rows:
+        await message.answer("现在没有待办。直接跟我说「明天九点提醒我交周报」就行。")
+        return
+
+    lines = [f"你有 {len(rows)} 条待办："]
+    for i, r in enumerate(rows, 1):
+        when = reminders.fmt_local(r.due_at, settings.timezone)
+        mark = " ⚠️已过期" if r.due_at and r.due_at < datetime.now(UTC) else ""
+        lines.append(f"{i}. {r.title} · {when}{mark}")
+    lines.append("")
+    lines.append("点按钮完成，或发 /done 标题关键词")
+    await answer_long(message, "\n".join(lines))
+    await message.answer(
+        "要划掉哪条？",
+        reply_markup=reminder_list([(r.id, r.title) for r in rows[:6]]),
+    )
+
+
+@router.message(Command("done"))
+async def on_done(message: Message, session: AsyncSession) -> None:
+    assert message.from_user is not None
+    user = await user_service.get_by_telegram_id(session, message.from_user.id)
+    if user is None:
+        return
+    arg = (message.text or "").split(maxsplit=1)
+    if len(arg) < 2:
+        await message.answer("用法：/done 标题关键词")
+        return
+
+    kw = arg[1].strip()
+    target = await reminders.find_by_keyword(session, user.id, kw)
+    if target is None:
+        await message.answer(f"没找到包含「{kw}」的待办。")
+        return
+    await reminders.complete(session, user.id, target.id)
+    await message.answer(f"✅ 划掉了：{target.title}")
+
+
+@router.message(Command("delay", "snooze"))
+async def on_delay(message: Message, session: AsyncSession, settings: Settings) -> None:
+    assert message.from_user is not None
+    user = await user_service.get_by_telegram_id(session, message.from_user.id)
+    if user is None:
+        return
+    parts = (message.text or "").split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer("用法：/delay 标题关键词 20（推迟 20 分钟）")
+        return
+    kw, minutes = parts[1], parts[2]
+    try:
+        mins = int(minutes)
+    except ValueError:
+        await message.answer("分钟数要写数字，比如 20。")
+        return
+
+    target = await reminders.find_by_keyword(session, user.id, kw)
+    if target is None:
+        await message.answer(f"没找到包含「{kw}」的待办。")
+        return
+    row = await reminders.snooze(session, user.id, target.id, mins)
+    when = reminders.fmt_local(row.due_at, settings.timezone) if row else ""
+    await message.answer(f"⏰ 「{target.title}」改到 {when}")
+
+
+@router.message(Command("cancel"))
+async def on_cancel(message: Message, session: AsyncSession) -> None:
+    assert message.from_user is not None
+    user = await user_service.get_by_telegram_id(session, message.from_user.id)
+    if user is None:
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("用法：/cancel 标题关键词")
+        return
+    target = await reminders.find_by_keyword(session, user.id, parts[1].strip())
+    if target is None:
+        await message.answer("没找到这条待办。")
+        return
+    await reminders.cancel(session, user.id, target.id)
+    await message.answer(f"🗑 删掉了：{target.title}")
 
 
 @router.message(Command("model"))

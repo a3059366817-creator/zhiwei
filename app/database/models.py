@@ -152,3 +152,30 @@ class UserSettings(TimestampMixin, Base):
     model_name: Mapped[str] = mapped_column(String(80), default="qwen3:8b")
     memory_enabled: Mapped[bool] = mapped_column(default=True)
     auto_save_enabled: Mapped[bool] = mapped_column(default=True)
+
+
+class Reminder(Base):
+    """待办 / 定时提醒。
+
+    与记忆的区别：记忆是「事实」，提醒是「未来要发生的事」，
+    到点必须主动推送，所以单独建表并有调度状态字段。
+    """
+
+    __tablename__ = "reminders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    # pending | done | cancelled
+    remind_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_remind_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source: Mapped[str] = mapped_column(String(20), default="chat")  # chat | manual | migrated
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
