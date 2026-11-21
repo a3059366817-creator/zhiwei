@@ -7,6 +7,23 @@
 本目录是**按《知微 V1.0 产品设计规格》实现的 Python 版本**，规格原文见
 [`docs/PROJECT_SPEC.md`](docs/PROJECT_SPEC.md)。
 
+**线上地址：<https://zhiwei-u0jc.onrender.com>** · Bot：`@zhiwei_muchuna_bot`
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/INDEX.md](docs/INDEX.md) | 文档导航（从这里开始） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层架构、一次消息的完整链路、设计决策 |
+| [docs/DATABASE.md](docs/DATABASE.md) | 8 张表结构、迁移、备份、踩坑 |
+| [docs/API.md](docs/API.md) | HTTP 接口、Telegram 命令、环境变量全清单 |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 开发环境、测试、常见改造任务 |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | 部署、日志、监控、故障排查 |
+| [docs/FILE_MAP.md](docs/FILE_MAP.md) | 每个文件的作用 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 变更记录与决策 |
+| [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) | 规格验收对照 |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Render 部署实录与四个坑 |
+
 ---
 
 ## 当前进度

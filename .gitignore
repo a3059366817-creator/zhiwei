@@ -28,3 +28,7 @@ htmlcov/
 .vscode/
 .idea/
 .DS_Store
+
+# 调试临时文件
+*.tmp
+.render_secret.tmp
