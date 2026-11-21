@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     cloudflare_account_id: str = ""
     cloudflare_model: str = "@cf/meta/llama-3.1-8b-instruct"
     cloudflare_base_url: str = "https://api.cloudflare.com/client/v4"
+    # Workers AI 偶尔排队几十秒；超时就报错/切备用，别让用户干等
+    cloudflare_timeout: float = 30.0
 
     # 人格
     ai_name: str = "知微"

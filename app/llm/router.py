@@ -37,6 +37,7 @@ def build_provider(name: str, settings: Settings):
             settings.cloudflare_account_id,
             settings.cloudflare_model,
             settings.cloudflare_base_url,
+            settings.cloudflare_timeout,
         )
     raise LLMError(f"未知的模型提供方：{name}")
 
