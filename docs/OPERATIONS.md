@@ -141,3 +141,41 @@ pytest -q
 ```
 
 > ⚠️ 不要在云端直接在 shell 里升级，构建时以 `uv.lock` 为准。
+
+## 9. 提醒保活（V1.1 关键）
+
+Render 免费实例 15 分钟无请求休眠，**休眠时进程内调度器不跑**，
+所以必须有一个外部 cron 每 5 分钟打 `POST /api/v1/internal/tick`。
+
+### 方案 A：GitHub Actions（推荐，免费）
+
+仓库里需要有 `.github/workflows/keepalive.yml`（内容见 `docs/keepalive.yml.example`），
+它用 `secrets.TICK_TOKEN` 调接口。仓库 secret 已经配置好了（名为 `TICK_TOKEN`）。
+
+> ⚠️ 推送 workflow 文件需要 PAT 带 `workflow` 权限；只有 `repo` 权限会被 GitHub 拒绝。
+> 没有该权限时，可以在 GitHub 网页上手动新建这个文件（Add file → Create new file）。
+
+### 方案 B：任何可发 HTTP 的定时器
+
+```bash
+curl -X POST https://zhiwei-u0jc.onrender.com/api/v1/internal/tick \
+  -H "X-API-Token: $ADMIN_API_TOKEN"
+```
+
+UptimeRobot / cron-job.org / 自建 cron 都行，注意必须能发 POST 并带 header。
+
+### 验证保活是否生效
+
+```powershell
+# 连续两次调用，间隔 > 15 分钟后再看 Render 日志：如果没有新的冷启动记录，说明没睡
+curl -X POST https://zhiwei-u0jc.onrender.com/api/v1/internal/tick -H "X-API-Token: ..."
+```
+
+响应里的 `sent` 是本次推送的提醒条数。
+
+### 提醒没发出的排查顺序
+
+1. `/todo` 看这条还在不在、时间对不对（注意时区）；
+2. 手动打一次 tick，看 `sent` 是否为 0；
+3. `sent=0` 且确实到点了 → 检查 `remind_count` 是否已到 3、`last_remind_at` 是否在 20 分钟内；
+4. `sent>0` 但没收到 → 查 Telegram 侧是否被屏蔽、bot 是否被 block。

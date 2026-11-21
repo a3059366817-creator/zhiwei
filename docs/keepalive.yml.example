@@ -1,0 +1,40 @@
+name: keepalive
+
+# 用途：
+#   1. 每 5 分钟叫醒 Render 免费实例（15 分钟无请求会休眠 → 休眠时定时提醒不触发）
+#   2. 顺手触发一次到期提醒检查
+#
+# 放到仓库的 .github/workflows/keepalive.yml
+# 需要一个仓库 secret：TICK_TOKEN（已经配置好了）
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /api/v1/internal/tick
+        env:
+          TICK_TOKEN: ${{ secrets.TICK_TOKEN }}
+        run: |
+          if [ -z "$TICK_TOKEN" ]; then
+            echo "missing TICK_TOKEN secret"; exit 1
+          fi
+          for i in 1 2 3; do
+            code=$(curl -sS -o /tmp/out.txt -w "%{http_code}" \
+              -X POST "https://zhiwei-u0jc.onrender.com/api/v1/internal/tick" \
+              -H "X-API-Token: $TICK_TOKEN" \
+              -H "Content-Type: application/json" \
+              --max-time 90) || true
+            echo "attempt $i -> HTTP $code: $(cat /tmp/out.txt 2>/dev/null)"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 20
+          done
+          exit 1

@@ -161,3 +161,39 @@ $env:LLM_PROVIDER="ollama"; python -m uvicorn app.main:app --port 8420
 python scripts/check_memory.py
 python scripts/check_people.py
 ```
+
+## 5. 提醒相关（V1.1）
+
+### 接口
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/api/v1/internal/tick` | API Token | 外部 cron 调用：唤醒服务并立刻检查到期提醒 |
+
+### 命令
+
+| 命令 | 作用 |
+|---|---|
+| `/todo`（别名 `/todos` `/remind`） | 列出待办，带「完成」按钮 |
+| `/done 关键词` | 按标题关键词划掉 |
+| `/delay 关键词 20` | 推迟 20 分钟 |
+| `/cancel 关键词` | 删除待办 |
+
+### 模型控制标签
+
+模型在回复末尾输出，服务端解析后从文本里剥掉：
+
+```
+[[TODO:交周报|2026-11-22T09:00]]   新建带时间的提醒（本地时间，24 小时制）
+[[TODO:买牛奶]]                    新建不提醒的待办
+[[DONE:交周报]]                    完成标题含该关键词的待办
+```
+
+解析在 `app/reminders/tags.py`，测试在 `tests/unit/test_reminders.py`。
+
+### 新增环境变量
+
+| 变量 | 说明 |
+|---|---|
+| `TIMEZONE` | 用户时区，默认 `Asia/Shanghai`；提醒时间按它换算 |
+| `ADMIN_API_TOKEN` | 同时保护只读接口与 `/internal/tick` |

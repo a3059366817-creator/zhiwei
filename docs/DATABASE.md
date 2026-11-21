@@ -162,3 +162,26 @@ psql "$DATABASE_URL" < backup.sql
 
 > 删除记忆是**真删除**（`DELETE FROM memories`），不是软删除；
 > 误删只能靠 Neon 的 PITR 恢复，所以重要数据建议定期 `pg_dump`。
+
+## 6. reminders（提醒表，V1.1 新增）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | VARCHAR(36) PK | |
+| user_id | FK → users.id | |
+| title | VARCHAR(200) | 一句话标题 |
+| notes | TEXT | 可选 |
+| due_at | TIMESTAMPTZ | 到点时间（**存 UTC**），NULL 表示只是待办不提醒 |
+| status | VARCHAR(20) | `pending` / `done` / `cancelled` |
+| remind_count | INTEGER | 已推送次数，上限 3 |
+| last_remind_at | TIMESTAMPTZ | 上次推送时间，用于 20 分钟冷却 |
+| source | VARCHAR(20) | `chat` / `manual` / `migrated` |
+| created_at / done_at | TIMESTAMPTZ | |
+
+索引：`user_id`、`status`、`due_at`、`created_at`。
+
+**为什么要存 UTC**：模型输出的是用户本地时间（如 `2026-11-22T07:30`），
+服务器跑在 UTC（Render）。`app/reminders/service.py::to_utc()` 负责换算，
+判断是否到期一律用 UTC 比较。写错这一步会导致早 8 小时或晚 8 小时提醒。
+
+迁移：`66721e3e2482_add_reminders_table`。
