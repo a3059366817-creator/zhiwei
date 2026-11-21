@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     ai_name: str = "知微"
     user_name: str = "木川"
 
+    # 自保活：服务每 N 分钟请求一次自己的公网地址，重置 Render 的空闲计时
+    public_base_url: str = ""
+    self_ping_minutes: int = 10
+
     # 只读 HTTP 接口的访问令牌（不设则关闭这些接口）
     admin_api_token: str = ""
 

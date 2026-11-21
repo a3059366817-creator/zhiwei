@@ -41,6 +41,22 @@ def _upgrade_schema() -> None:
     command.upgrade(cfg, "head")
 
 
+async def _self_ping_loop(settings) -> None:
+    """每 N 分钟请求一次自己的 /health，避免免费实例休眠。"""
+    import httpx
+
+    url = f"{settings.public_base_url.rstrip('/')}/health"
+    interval = max(1, settings.self_ping_minutes) * 60
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.get(url)
+            logger.info("自保活 ping 成功：%s", r.status_code)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("自保活 ping 失败：%s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -64,6 +80,7 @@ async def lifespan(app: FastAPI):
     app.state.scheduler = None
 
     poll_task: asyncio.Task | None = None
+    self_ping_task: asyncio.Task | None = None
     scheduler = None
     bot = None
     if settings.telegram_bot_token:
@@ -89,6 +106,16 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Bot 处于 webhook 模式，等待 POST /webhook/telegram")
 
+        # 自保活：Render 免费实例 15 分钟无入站请求会休眠。
+        # 进程自己每 10 分钟请求一次公网地址，就算"有流量"，从而保持清醒。
+        if settings.public_base_url and settings.self_ping_minutes > 0:
+            self_ping_task = asyncio.create_task(_self_ping_loop(settings))
+            logger.info(
+                "自保活已启动：每 %s 分钟 ping %s/health",
+                settings.self_ping_minutes,
+                settings.public_base_url,
+            )
+
         # 提醒调度器：进程醒着就每 30 秒检查一次；外部 cron 也可以打 /api/v1/internal/tick
         from app.reminders.scheduler import ReminderScheduler
 
@@ -101,6 +128,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        if self_ping_task is not None:
+            self_ping_task.cancel()
         if scheduler is not None:
             await scheduler.stop()
         if poll_task is not None:
