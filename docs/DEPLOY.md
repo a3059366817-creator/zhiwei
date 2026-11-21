@@ -1,105 +1,94 @@
-# 部署到 Render（详细步骤）
+# 部署到 Render（已完成）
 
-代码已经准备好：`Dockerfile`、`render.yaml`、Alembic 迁移、健康检查 `/health` 都在。
-数据库已经跑在 Neon 上（PostgreSQL 18）。
+**线上地址：<https://zhiwei-u0jc.onrender.com>**
+Telegram：`@zhiwei_muchuna_bot`（webhook 模式）· 数据库：Neon · 模型：Cloudflare Workers AI
+
+一键部署脚本：`scripts/deploy_render.py`（GitHub + Render API 全自动，幂等）
+
+```powershell
+python scripts/deploy_render.py --github-token <PAT> --render-key <KEY>
+```
 
 ---
 
-## 一、推代码到 GitHub
+## 部署时踩到的 4 个坑（都已修正）
 
-项目已经初始化好 git 仓库并提交过一次。你只需要建远程仓库并推：
+### 1. 私有仓库 Render 拉不到
 
-```powershell
-cd D:\develop\AI好友\zhiwei
+Render 需要 GitHub App 授权才能读私有仓库，否则报
+`repository URL is invalid or unfetchable`。
+**解决**：仓库设为 public（代码不含密钥），或在 Render 里给 GitHub App 授权该仓库。
 
-# 1. 在 GitHub 上新建一个空仓库（不要勾选 README/.gitignore）
-# 2. 关联并推送（把 URL 换成你自己的）
-git remote add origin https://github.com/<你的用户名>/zhiwei.git
-git branch -M main
-git push -u origin main
-```
+### 2. `uv pip install .` 构建失败
 
-> 如果提示要登录：用 GitHub 的 Personal Access Token 当密码（Settings → Developer settings → Tokens）。
+`pyproject.toml` 没声明 `[build-system]`，pip 退回 setuptools 旧式布局探测，
+在扁平目录（app/ migrations/ tests/）下必然失败。
+**解决**：改用 hatchling 并声明 `packages = ["app"]`。
 
-## 二、Render 创建服务
+### 3. 依赖装完，运行时 `No module named uvicorn`
 
-1. 打开 <https://dashboard.render.com> → **New** → **Blueprint**
-2. 选择刚推上去的仓库（Render 会自动读取 `render.yaml`）
-3. 它会创建 Web Service `zhiwei`，区域 `singapore`，健康检查 `/health`
-4. 在 **Environment** 里填这几个变量（`render.yaml` 里标了 `sync: false` 的都必须手填）：
+Render 的运行时是 `/opt/render/project/src/.venv`；
+`--system` 装到了系统 Python，不带 `--system` 又装到别处。
+**解决**：构建命令显式指定解释器
+`uv pip install --python "$(which python)" --no-cache .`，
+启动用 `python -m uvicorn ...`（`uvicorn` 这个 bin 不在 PATH 上）。
+
+### 4. 构建期跑 alembic 找不到模块
+
+**解决**：构建期不迁移。应用启动时本来就会执行 `alembic upgrade head`
+（`app/main.py` lifespan 里用线程跑，避免 asyncio 嵌套冲突）。
+
+---
+
+## Render 上的配置（已生效）
 
 | 变量 | 值 |
 |---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://neondb_owner:...@ep-...neon.tech/neondb?ssl=require` |
-| `TELEGRAM_BOT_TOKEN` | 你的 bot token（从 `.env` 里复制） |
-| `TELEGRAM_USER_ID` | 你的 Telegram 用户 ID（给 bot 发 `/id` 可得） |
-| `GEMINI_API_KEY` | 你的 Gemini key（不填也行，见下） |
+| `APP_ENV` | production |
+| `BOT_MODE` | webhook |
+| `LLM_PROVIDER` | cloudflare |
+| `LLM_FALLBACK_PROVIDER` | （空，云端没有本地 Ollama） |
+| `CLOUDFLARE_MODEL` | @cf/meta/llama-3.3-70b-instruct-fp8-fast |
+| `CLOUDFLARE_TIMEOUT` | 45 |
+| `DATABASE_URL` | Neon（asyncpg + `ssl=require`） |
+| `TELEGRAM_WEBHOOK_SECRET` | 部署脚本自动生成 |
 
-5. 点 **Deploy**，等构建完成（首次约 3-5 分钟）
+构建命令：`uv pip install --python "$(which python)" --no-cache .`
+启动命令：`python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
-## 三、设置 Telegram Webhook
+---
 
-部署完成后，Render 会给你一个 `https://zhiwei-xxxx.onrender.com` 域名：
+## 免费实例注意
 
-```powershell
-# 先把 BOT_MODE 改成 webhook（render.yaml 里已设为 webhook）
-# 生成一个随机 secret 填进 Render 的 TELEGRAM_WEBHOOK_SECRET，然后：
-curl "https://api.telegram.org/bot<TOKEN>/setWebhook" `
-  -d "url=https://<你的应用>.onrender.com/webhook/telegram" `
+- **15 分钟无请求会休眠**，下一条消息要等 30-50 秒冷启动；
+- 想避免：用 UptimeRobot 每 10 分钟 ping `/health`，或升级付费实例；
+- Cloudflare 免费额度用尽会返回 429，云端没有备用模型，会直接报错
+  （建议后续接一个 DeepSeek 当备用）。
+
+## 手工部署（不用脚本时）
+
+1. GitHub 建仓库并推代码
+2. Render → New → Web Service → 选仓库
+3. Build：`uv pip install --python "$(which python)" --no-cache .`
+4. Start：`python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. 填环境变量（见上表）
+6. 设 webhook：
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+  -d "url=https://<你的应用>.onrender.com/webhook/telegram" \
   -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
 ```
 
-验证：
+> webhook 与本地长轮询互斥：云端上线后必须停掉本地进程，否则 Telegram 会报 409。
+
+## 回滚 / 重新部署
 
 ```powershell
-curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
+# 触发一次新部署（用最新提交）
+$H = @{ Authorization = "Bearer <RENDER_KEY>"; "Content-Type" = "application/json" }
+Invoke-RestMethod -Method Post -Uri "https://api.render.com/v1/services/<SERVICE_ID>/deploys" `
+  -Headers $H -Body '{"clearCache":"clear"}'
 ```
 
-> 注意：**webhook 和本地长轮询不能同时用**。云端跑起来后，把本地这个进程停掉，
-> 否则两边抢同一个 bot（Telegram 会报 409）。
-
-## 四、模型选择
-
-| 场景 | 建议 |
-|---|---|
-| 云端（Render，海外） | `LLM_PROVIDER=cloudflare`（Workers AI 免费额度）或 `gemini` |
-| 本地（国内） | `LLM_PROVIDER=ollama` 或 `cloudflare` 或 `deepseek` |
-
-云端没有本地 Ollama，所以 Render 上必须用 `cloudflare` / `gemini` / `openrouter` / `deepseek` 之一。
-
-**用 Cloudflare Workers AI 时**，两个变量都要填：
-
-```env
-LLM_PROVIDER=cloudflare
-CLOUDFLARE_API_TOKEN=cfut_xxx
-CLOUDFLARE_ACCOUNT_ID=从控制台右侧栏复制
-CLOUDFLARE_MODEL=@cf/meta/llama-3.1-8b-instruct
-```
-
-> `account_id` 不是密钥，是账户标识（Workers AI 的 URL 路径里必须带）。
-> 留空时该提供方会被自动跳过，回退到下一个可用的模型。
-
-## 五、免费实例注意事项（规格 9.3 已说明）
-
-- Render 免费实例 **15 分钟无请求会休眠**，下次消息要等 30-50 秒冷启动；
-- Neon 免费额度有计算时间限制；
-- 两者都可能被服务商调整。
-
-如果嫌冷启动慢，可以：
-
-- 用 UptimeRobot 之类的服务每 10 分钟 ping 一次 `/health`；
-- 或者升级 Render 付费实例（$7/月，不休眠）。
-
-## 六、部署后自检
-
-```powershell
-curl https://<你的应用>.onrender.com/health
-```
-
-应返回：
-
-```json
-{"status":"ok","database":true,"config":{"database":"postgres", ...}}
-```
-
-然后在 Telegram 里给 @zhiwei_muchuna_bot 发消息，看是否正常回复、记忆是否写入 Neon。
+当前 service id：`srv-dc0leom7bikc73b5q2gg`

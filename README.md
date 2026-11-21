@@ -20,7 +20,7 @@
 | P4 | 数据库（Neon Postgres + Alembic 迁移） | ✅ 已完成（Neon PostgreSQL 18） |
 | P5 | 记忆提取、候选确认、检索 | ✅ 已完成 |
 | P6 | 个人画像与人物关系 | ✅ 已完成 |
-| P7 | Render 云端部署（电脑关机也能用） | 🟡 配置已备好，等账号 |
+| P7 | Render 云端部署（电脑关机也能用） | ✅ 已上线 <https://zhiwei-u0jc.onrender.com> |
 | P8 | 安全与验收 | ✅ 已完成（见 [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md)） |
 
 ---

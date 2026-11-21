@@ -32,12 +32,15 @@ cd D:\develop\AI好友\zhiwei
 | 15 | 记忆修改与删除 | ✅ | `/memory` 的 ✏️ / 🗑，人物可改称呼/备注/关系 |
 | 16 | Telegram 用户访问控制 | ✅ | `app/bot/middlewares.py::AccessMiddleware` |
 | 17 | 基础测试 | ✅ | 66 个用例 |
-| 18 | Render 部署配置 | ✅ 文件就绪 | `render.yaml` + `Dockerfile`；需账号 |
-| 19 | Neon 数据库配置 | 🟡 待账号 | 连接串填入 `DATABASE_URL` |
+| 18 | Render 部署配置 | ✅ 已上线 | https://zhiwei-u0jc.onrender.com （free，singapore） |
+| 19 | Neon 数据库配置 | ✅ 已完成 | Neon PostgreSQL 18，`ssl=require`，迁移到 `1cafcf7526e2` |
 | 20 | README 使用文档 | ✅ | `README.md` |
 | 21 | `.env.example` | ✅ | 含全部环境变量与注释 |
 
-**结论：代码侧全部完成；剩下 2 项（Render / Neon）只差账号与密钥。**
+**结论：V1.0 交付清单全部完成，服务已运行在云端（电脑关机也能用）。**
+
+线上地址：<https://zhiwei-u0jc.onrender.com> · 健康检查 `/health`
+Telegram：`@zhiwei_muchuna_bot`（webhook 模式）
 
 ---
 
