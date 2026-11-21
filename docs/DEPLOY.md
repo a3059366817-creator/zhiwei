@@ -62,11 +62,22 @@ curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
 
 | 场景 | 建议 |
 |---|---|
-| 云端（Render，海外） | `LLM_PROVIDER=gemini`，直连 Google 无需代理 |
-| 本地（国内） | `LLM_PROVIDER=ollama` 或 `deepseek` |
+| 云端（Render，海外） | `LLM_PROVIDER=cloudflare`（Workers AI 免费额度）或 `gemini` |
+| 本地（国内） | `LLM_PROVIDER=ollama` 或 `cloudflare` 或 `deepseek` |
 
-云端没有本地 Ollama，所以 Render 上必须用 `gemini` / `openrouter` / `deepseek` 之一。
-如果暂时没有 Gemini key，可以先用 `deepseek`（国内可直连，但 Render 在海外也访问得到）。
+云端没有本地 Ollama，所以 Render 上必须用 `cloudflare` / `gemini` / `openrouter` / `deepseek` 之一。
+
+**用 Cloudflare Workers AI 时**，两个变量都要填：
+
+```env
+LLM_PROVIDER=cloudflare
+CLOUDFLARE_API_TOKEN=cfut_xxx
+CLOUDFLARE_ACCOUNT_ID=从控制台右侧栏复制
+CLOUDFLARE_MODEL=@cf/meta/llama-3.1-8b-instruct
+```
+
+> `account_id` 不是密钥，是账户标识（Workers AI 的 URL 路径里必须带）。
+> 留空时该提供方会被自动跳过，回退到下一个可用的模型。
 
 ## 五、免费实例注意事项（规格 9.3 已说明）
 

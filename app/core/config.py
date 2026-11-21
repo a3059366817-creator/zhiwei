@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
 
+    # Cloudflare Workers AI（免费额度，账户 ID 必须配）
+    cloudflare_api_token: str = ""
+    cloudflare_account_id: str = ""
+    cloudflare_model: str = "@cf/meta/llama-3.1-8b-instruct"
+    cloudflare_base_url: str = "https://api.cloudflare.com/client/v4"
+
     # 人格
     ai_name: str = "知微"
     user_name: str = "木川"

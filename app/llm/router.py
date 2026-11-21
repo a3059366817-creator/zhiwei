@@ -9,6 +9,7 @@ import logging
 
 from app.core.config import Settings
 from app.llm.base import LLMError
+from app.llm.cloudflare import CloudflareProvider
 from app.llm.deepseek import DeepSeekProvider
 from app.llm.gemini import GeminiProvider
 from app.llm.ollama import OllamaProvider
@@ -29,6 +30,13 @@ def build_provider(name: str, settings: Settings):
     if key == "deepseek":
         return DeepSeekProvider(
             settings.deepseek_api_key, settings.deepseek_model, settings.deepseek_base_url
+        )
+    if key == "cloudflare":
+        return CloudflareProvider(
+            settings.cloudflare_api_token,
+            settings.cloudflare_account_id,
+            settings.cloudflare_model,
+            settings.cloudflare_base_url,
         )
     raise LLMError(f"未知的模型提供方：{name}")
 

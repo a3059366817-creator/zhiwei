@@ -105,11 +105,13 @@ zhiwei/
 | `LLM_PROVIDER` | 需要 | 说明 |
 |---|---|---|
 | `ollama` | 本机 Ollama | 免费、离线，默认 |
+| `cloudflare` | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | Workers AI，免费额度，国内可直连 |
+| `deepseek` | `DEEPSEEK_API_KEY` | 国内直连，不需要代理 |
 | `gemini` | `GEMINI_API_KEY` | 规格指定主模型 |
 | `openrouter` | `OPENROUTER_API_KEY` + model | 规格指定备用 |
-| `deepseek` | `DEEPSEEK_API_KEY` | 国内直连，不需要代理 |
 
 `LLM_FALLBACK_PROVIDER` 配一个不同的值，主模型失败会自动切过去。
+配置不全的提供方（比如没填 account_id 的 Cloudflare）会被自动跳过，不会导致启动失败。
 
 ### 只读 HTTP 接口
 

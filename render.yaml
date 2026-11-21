@@ -17,7 +17,7 @@ services:
       - key: BOT_MODE
         value: webhook
       - key: LLM_PROVIDER
-        value: gemini
+        value: cloudflare
       - key: DATABASE_URL
         sync: false   # Neon 连接串：在 Render 后台手动填
       - key: TELEGRAM_BOT_TOKEN
@@ -26,10 +26,12 @@ services:
         sync: false
       - key: TELEGRAM_WEBHOOK_SECRET
         generateValue: true
-      - key: GEMINI_API_KEY
+      - key: CLOUDFLARE_API_TOKEN
         sync: false
-      - key: GEMINI_MODEL
-        value: gemini-2.0-flash
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_MODEL
+        value: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
       - key: AI_NAME
         value: 知微
       - key: USER_NAME
