@@ -33,7 +33,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 GH_API = "https://api.github.com"
 RENDER_API = "https://api.render.com/v1"
 
-BUILD_CMD = "pip install uv && uv pip install --system --no-cache . && alembic upgrade head"
+BUILD_CMD = 'uv pip install --python "$(which python)" --no-cache .'
 START_CMD = "python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 
 
