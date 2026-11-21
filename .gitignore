@@ -33,5 +33,3 @@ htmlcov/
 *.tmp
 .render_secret.tmp
 
-# 需 workflow 权限，手动添加
-.github/workflows/keepalive.yml
