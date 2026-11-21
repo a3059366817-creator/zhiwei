@@ -9,6 +9,10 @@ venv/
 .env.local
 
 # 本地数据
+dist/
+build/
+*.egg-info/
+
 data/
 *.db
 *.db-journal
