@@ -34,7 +34,7 @@ GH_API = "https://api.github.com"
 RENDER_API = "https://api.render.com/v1"
 
 BUILD_CMD = "pip install uv && uv pip install --system --no-cache . && alembic upgrade head"
-START_CMD = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+START_CMD = "python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 
 
 def _client(timeout: float = 30) -> httpx.Client:
