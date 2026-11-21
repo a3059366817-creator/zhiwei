@@ -180,6 +180,7 @@ def test_prompt_shows_user_local_time_not_utc():
     assert "21:18" in prompt
     assert "13:18" not in prompt
     assert "Asia/Shanghai" in prompt
+    assert "唯一可信的时间" in prompt
 
 
 async def test_create_reminder_dedupes_same_title_within_a_minute(db):
