@@ -37,6 +37,35 @@ BUILD_CMD = "pip install uv && uv pip install --system --no-cache . && alembic u
 START_CMD = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 
 
+def _client(timeout: float = 30) -> httpx.Client:
+    """GitHub/Render 直连更稳（绕过本机代理的偶发 TLS 抖动）。"""
+    return httpx.Client(timeout=timeout, trust_env=False)
+
+
+def _get(url: str, headers: dict | None = None, **kw) -> httpx.Response:
+    last: Exception | None = None
+    for attempt in range(4):
+        try:
+            with _client() as c:
+                return c.get(url, headers=headers, **kw)
+        except httpx.HTTPError as exc:
+            last = exc
+            time.sleep(1.5 * (attempt + 1))
+    raise SystemExit(f"网络请求失败（重试 4 次）：{url}\n{last}")
+
+
+def _post(url: str, headers: dict | None = None, **kw) -> httpx.Response:
+    last: Exception | None = None
+    for attempt in range(4):
+        try:
+            with _client(60) as c:
+                return c.post(url, headers=headers, **kw)
+        except httpx.HTTPError as exc:
+            last = exc
+            time.sleep(1.5 * (attempt + 1))
+    raise SystemExit(f"网络请求失败（重试 4 次）：{url}\n{last}")
+
+
 def log(msg: str) -> None:
     print(msg, flush=True)
 
@@ -56,23 +85,23 @@ def load_env(path: pathlib.Path) -> dict[str, str]:
 
 # ---------------- GitHub ----------------
 def github_user(token: str) -> dict:
-    r = httpx.get(f"{GH_API}/user", headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    r = _get(f"{GH_API}/user", headers={"Authorization": f"Bearer {token}"})
     r.raise_for_status()
     return r.json()
 
 
-def ensure_repo(token: str, name: str, private: bool = True) -> str:
+def ensure_repo(token: str, login: str, name: str, private: bool = True) -> str:
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-    r = httpx.get(f"{GH_API}/repos/{name}", headers=headers, timeout=30)
+    full = f"{login}/{name}"
+    r = _get(f"{GH_API}/repos/{full}", headers=headers)
     if r.status_code == 200:
         log(f"   仓库已存在：{r.json()['full_name']}")
         return r.json()["full_name"]
 
-    r = httpx.post(
+    r = _post(
         f"{GH_API}/user/repos",
         headers=headers,
         json={"name": name, "private": private, "auto_init": False},
-        timeout=30,
     )
     if r.status_code not in (200, 201):
         raise SystemExit(f"创建仓库失败：{r.status_code} {r.text[:300]}")
@@ -87,15 +116,27 @@ def push(repo_full: str, token: str, branch: str = "main") -> None:
     subprocess.run(["git", "commit", "-m", "deploy: auto"], cwd=ROOT, capture_output=True)
     run(["git", "branch", "-M", branch])
     run(["git", "push", "--force", url, f"{branch}:{branch}"])
-    run(["git", "remote", "remove", "origin"])
-    run(["git", "remote", "add", "origin", f"https://github.com/{repo_full}.git"])
+    # origin 可能不存在，忽略失败
+    subprocess.run(["git", "remote", "remove", "origin"], cwd=ROOT, capture_output=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", f"https://github.com/{repo_full}.git"],
+        cwd=ROOT,
+        capture_output=True,
+    )
     log(f"   已推送到 {repo_full}@{branch}")
 
 
 def run(cmd: list[str]) -> None:
-    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
-    if p.returncode != 0 and "already exists" not in (p.stderr or ""):
-        raise SystemExit(f"命令失败：{' '.join(cmd)}\n{p.stderr[-500:]}")
+    p = subprocess.run(
+        cmd,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",  # Windows 默认 GBK，git 输出会带非 GBK 字节
+    )
+    if p.returncode != 0:
+        raise SystemExit(f"命令失败：{' '.join(cmd)}\n{(p.stderr or p.stdout or '')[-500:]}")
 
 
 # ---------------- Render ----------------
@@ -104,10 +145,9 @@ def render_headers(key: str) -> dict:
 
 
 def find_service(key: str, name: str) -> dict | None:
-    r = httpx.get(
+    r = _get(
         f"{RENDER_API}/services",
         headers=render_headers(key),
-        timeout=30,
         params={"limit": 100},
     )
     if r.status_code != 200:
@@ -141,7 +181,7 @@ def create_service(
             },
         },
     }
-    r = httpx.post(f"{RENDER_API}/services", headers=render_headers(key), json=payload, timeout=60)
+    r = _post(f"{RENDER_API}/services", headers=render_headers(key), json=payload)
     if r.status_code not in (200, 201):
         raise SystemExit(f"创建服务失败：{r.status_code} {r.text[:500]}")
     svc = r.json()
@@ -149,7 +189,7 @@ def create_service(
 
 
 def _owner_id(key: str) -> str:
-    r = httpx.get(f"{RENDER_API}/owners", headers=render_headers(key), timeout=30)
+    r = _get(f"{RENDER_API}/owners", headers=render_headers(key))
     if r.status_code == 200 and r.json():
         first = r.json()[0]
         return first.get("owner", first).get("id") or first.get("id")
@@ -160,10 +200,9 @@ def wait_live(key: str, service_id: str, timeout_s: int = 900) -> str:
     deadline = time.time() + timeout_s
     last = None
     while time.time() < deadline:
-        r = httpx.get(
+        r = _get(
             f"{RENDER_API}/services/{service_id}",
             headers=render_headers(key),
-            timeout=30,
         )
         if r.status_code == 200:
             svc = r.json()
@@ -255,7 +294,7 @@ def main() -> None:
     log(f"   账号：{user['login']}")
 
     log("[2/6] 创建/复用 GitHub 仓库")
-    repo_full = ensure_repo(args.github_token, f"{user['login']}/{args.repo}")
+    repo_full = ensure_repo(args.github_token, user["login"], args.repo)
 
     log("[3/6] 推送代码")
     push(repo_full, args.github_token, args.branch)
