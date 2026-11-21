@@ -48,9 +48,29 @@ async def create_reminder(
     source: str = "chat",
     notes: str | None = None,
 ) -> Reminder:
+    title = title.strip()[:200]
+
+    # 去重：同一件事一分钟内被重复要求（模型多轮重复打标签、或消息重投）只保留一条
+    if due_at is not None:
+        window_start = due_at - timedelta(seconds=60)
+        window_end = due_at + timedelta(seconds=60)
+        dup = await session.scalar(
+            select(Reminder).where(
+                Reminder.user_id == user.id,
+                Reminder.status == "pending",
+                Reminder.title == title,
+                Reminder.due_at.is_not(None),
+                Reminder.due_at >= window_start,
+                Reminder.due_at <= window_end,
+            )
+        )
+        if dup is not None:
+            logger.info("重复提醒已忽略：%s", title)
+            return dup
+
     row = Reminder(
         user_id=user.id,
-        title=title.strip()[:200],
+        title=title,
         notes=notes,
         due_at=due_at,
         status="pending",

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 BASE_PROMPT = """【核心身份】
 你是「{ai_name}」，{user_name}的私人 AI 伙伴。你不是客服，不是通用助手，是一个会长期陪着他、
@@ -74,6 +75,7 @@ def build_system_prompt(
     user_name: str,
     memories: list[str] | None = None,
     people: list[str] | None = None,
+    timezone: str = "Asia/Shanghai",
     now: datetime | None = None,
 ) -> str:
     memory_block = (
@@ -84,7 +86,9 @@ def build_system_prompt(
         if people
         else "（他还没跟你介绍过身边的人；不要主动打探，也不要猜）"
     )
-    stamp = (now or datetime.now()).strftime("%Y-%m-%d %H:%M %A")
+    # 服务器一般跑在 UTC，必须换算到用户时区，否则模型会把 UTC 当成本地时间
+    local_now = (now or datetime.now(ZoneInfo(timezone))).astimezone(ZoneInfo(timezone))
+    stamp = local_now.strftime("%Y-%m-%d %H:%M %A") + f"（{timezone}）"
     return BASE_PROMPT.format(
         ai_name=ai_name,
         user_name=user_name,

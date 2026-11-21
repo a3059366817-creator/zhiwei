@@ -51,6 +51,7 @@ class Assistant:
             user_name=self.settings.user_name,
             memories=memories,
             people=people,
+            timezone=self.settings.timezone,
         )
         messages = [{"role": "system", "content": system_prompt}, *history]
         return await self.router.chat(messages)

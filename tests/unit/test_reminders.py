@@ -163,3 +163,47 @@ async def test_reminder_is_user_scoped(db):
         assert await reminders.get_reminder(session, b.id, row.id) is None
         assert await reminders.complete(session, b.id, row.id) is None
         assert await reminders.list_pending(session, b.id) == []
+
+
+# ---------------- 时区与去重（线上暴露的两个 bug） ----------------
+def test_prompt_shows_user_local_time_not_utc():
+    """服务器跑 UTC，提示词必须显示用户本地时间，否则模型算错 8 小时。"""
+    from datetime import datetime
+
+    from app.agent.prompts import build_system_prompt
+
+    # 2026-11-21 13:18 UTC == 21:18 上海
+    fixed = datetime(2026, 11, 21, 13, 18, tzinfo=UTC)
+    prompt = build_system_prompt(
+        ai_name="知微", user_name="木川", timezone="Asia/Shanghai", now=fixed
+    )
+    assert "21:18" in prompt
+    assert "13:18" not in prompt
+    assert "Asia/Shanghai" in prompt
+
+
+async def test_create_reminder_dedupes_same_title_within_a_minute(db):
+    async with get_session_factory()() as session:
+        user = await user_service.get_or_create(session, telegram_id=6101)
+        base = datetime.now(UTC) + timedelta(hours=3)
+        a = await reminders.create_reminder(session, user, "做50道驾校题", base)
+        later = base + timedelta(seconds=5)
+        b = await reminders.create_reminder(session, user, "做50道驾校题", later)
+        assert a.id == b.id
+        assert len(await reminders.list_pending(session, user.id)) == 1
+
+
+async def test_create_reminder_allows_different_times(db):
+    async with get_session_factory()() as session:
+        user = await user_service.get_or_create(session, telegram_id=6102)
+        base = datetime.now(UTC) + timedelta(hours=3)
+        await reminders.create_reminder(session, user, "训练", base)
+        await reminders.create_reminder(session, user, "训练", base + timedelta(hours=6))
+        assert len(await reminders.list_pending(session, user.id)) == 2
+
+
+def test_webhook_update_dedup():
+    from app.api.webhook import _seen_before
+
+    assert _seen_before(123456) is False
+    assert _seen_before(123456) is True
