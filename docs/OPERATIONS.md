@@ -157,7 +157,24 @@ pytest -q
 Render 免费实例 15 分钟无请求休眠，**休眠时进程内调度器不跑**，
 所以必须有一个外部 cron 每 5 分钟打 `POST /api/v1/internal/tick`。
 
-### 方案 A：GitHub Actions（推荐，免费）
+### 方案 A（当前生效）：服务自保活
+
+`PUBLIC_BASE_URL=https://zhiwei-u0jc.onrender.com` + `SELF_PING_MINUTES=10`
+
+应用启动后每 10 分钟请求一次自己的 `/health`。这个请求经过 Render 的公网入口，
+会被算作"入站流量"，从而重置 15 分钟空闲计时器——服务就不会休眠，进程内调度器持续运行。
+
+实测：连续 12 分钟无任何外部请求后，`/health` 仍在 4.1 秒返回（冷启动是 30-50 秒）。
+
+> 代价：一直醒着约 730 小时/月（免费额度 750 小时），不能在同一账号开第二个免费服务。
+
+### 方案 B：GitHub Actions（已配置，但调度未生效）
+
+仓库里有 `.github/workflows/keepalive.yml`，每 5 分钟打一次 tick。
+**实测 GitHub 的 schedule 事件一直没触发（`event=schedule` 计数为 0）**，
+手动 `workflow_dispatch` 是成功的，所以只是调度器没跑。留作冗余，自保活已是主要手段。
+
+### 方案 C：任何外部定时器（备用）
 
 仓库里需要有 `.github/workflows/keepalive.yml`（内容见 `docs/keepalive.yml.example`），
 它用 `secrets.TICK_TOKEN` 调接口。仓库 secret 已经配置好了（名为 `TICK_TOKEN`）。
