@@ -1,0 +1,43 @@
+[project]
+name = "zhiwei"
+version = "0.1.0"
+description = "知微 ZhiWei — 私人 Telegram AI 伙伴（V1.0）"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "aiosqlite>=0.20",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "aiogram>=3.15",
+    "httpx>=0.28",
+    "aiohttp-socks>=0.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Alembic 自动生成的迁移脚本不参与 lint（格式由生成器决定）
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI 的依赖注入常规写法就是 Depends(...) 作默认值
+"app/api/*.py" = ["B008"]

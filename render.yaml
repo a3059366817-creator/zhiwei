@@ -1,0 +1,36 @@
+# Render 部署配置（免费 Web Service + Neon Postgres）
+services:
+  - type: web
+    name: zhiwei
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: "pip install uv && uv pip install --system --no-cache . && alembic upgrade head"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: APP_ENV
+        value: production
+      - key: BOT_MODE
+        value: webhook
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: DATABASE_URL
+        sync: false   # Neon 连接串：在 Render 后台手动填
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_USER_ID
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: AI_NAME
+        value: 知微
+      - key: USER_NAME
+        value: 木川
